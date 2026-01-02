@@ -1,0 +1,19 @@
+{
+  "name": "myxo-compute-rs",
+  "type": "module",
+  "collaborators": [
+    "R&D Researcher <your.email@example.com>"
+  ],
+  "description": "A dual-runtime computation core for WebAssembly and Python, powered by Rust.",
+  "version": "0.1.0",
+  "files": [
+    "myxo_compute_rs_bg.wasm",
+    "myxo_compute_rs.js",
+    "myxo_compute_rs.d.ts"
+  ],
+  "main": "myxo_compute_rs.js",
+  "types": "myxo_compute_rs.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

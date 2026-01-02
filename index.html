@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project MYXOMYCETES: Rust Edition</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; color: #0f0; font-family: 'Courier New', Courier, monospace; }
+        #ui-layer { position: absolute; top: 10px; left: 10px; z-index: 100; pointer-events: none; }
+        .stat-panel { background: rgba(0, 20, 0, 0.8); border: 1px solid #0f0; padding: 10px; margin-bottom: 5px; pointer-events: auto; }
+        canvas { display: block; }
+        #overlay { position: absolute; bottom: 20px; left: 20px; color: #0f0; font-size: 12px; pointer-events: none; }
+        .legend { margin-top: 10px; font-size: 11px; }
+        .legend-item { display: flex; align-items: center; margin-bottom: 3px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+        
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 24px; color: #0f0; background: rgba(0,0,0,0.8); padding: 20px; border: 1px solid #0f0;
+            pointer-events: none; z-index: 200; transition: opacity 0.5s;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-layer">
+    <div class="stat-panel">
+        <h2 style="margin:0 0 10px 0; font-size:16px;">PROJECT MYXOMYCETES v2.0 (Rust)</h2>
+        <div>STATUS: <span id="status">INITIALIZING...</span></div>
+        <div>THROUGHPUT: <span id="throughput">0</span> pkgs/min</div>
+        <div>ACTIVE AGVs: <span id="agv-count-display">0</span></div>
+        
+        <div class="legend">
+            <div class="legend-item"><div class="dot" style="background: #f00;"></div>Pickup (Red)</div>
+            <div class="legend-item"><div class="dot" style="background: #0f0;"></div>Delivery (Green)</div>
+            <div class="legend-item"><div class="dot" style="background: #00f;"></div>Repulsion/Wall (Blue)</div>
+            <div class="legend-item"><div class="dot" style="background: #ff0;"></div>Reinforced Vein (Yellow)</div>
+        </div>
+    </div>
+    <div class="stat-panel">
+        <div style="font-size:12px;">SYSTEM LOG:</div>
+        <div id="log" style="font-size:10px; height: 80px; overflow-y: hidden;"></div>
+    </div>
+</div>
+
+<div id="overlay">
+    [CORE] Rust/WASM High-Performance Engine<br>
+    [SYS] Adaptive Grid Topology: 128x128<br>
+    [DATA] Zero-Copy Memory Streaming Active
+</div>
+
+<div id="loading">Initializing WebAssembly Core...</div>
+
+<script type="module" src="./index.js"></script>
+
+</body>
+</html>
