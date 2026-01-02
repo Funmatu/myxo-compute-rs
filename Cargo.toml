@@ -25,6 +25,8 @@ wasm-bindgen = { version = "0.2", optional = true }
 pyo3 = { version = "0.20", features = ["extension-module"], optional = true }
 
 rayon = "1.10"
+rand = "0.8"
+getrandom = { version = "0.2", features = ["js"] } # WASMで乱数を使うために必須
 
 [profile.release]
 lto = true

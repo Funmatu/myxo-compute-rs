@@ -1,154 +1,106 @@
-# Nexus Compute RS: Dual-Runtime R&D Architecture
+# Project MYXOMYCETES: Dual-Runtime Swarm Logistics Engine
 
-![Build Status](https://github.com/Funmatu/nx-compute-rs/actions/workflows/deploy.yml/badge.svg)
+![Build Status](https://github.com/Funmatu/myxo-compute-rs/actions/workflows/deploy.yml/badge.svg)
 ![Rust](https://img.shields.io/badge/Language-Rust-orange.svg)
-![Platform](https://img.shields.io/badge/Platform-WASM%20%7C%20Python-blue.svg)
+![WASM](https://img.shields.io/badge/Platform-WebAssembly-blue.svg)
+![Python](https://img.shields.io/badge/Platform-Python-yellow.svg)
 
-**Nexus Compute RS** is a rigorous proof-of-concept template designed for R&D in Physical AI and Robotics. It implements a "Write Once, Run Everywhere" strategy for high-performance algorithms, bridging the gap between web-based visualization/sharing and Python-based rigorous analysis/backend processing.
+**Project MYXOMYCETES** (myxo-compute-rs) is a high-performance, agent-based simulation engine inspired by the biological transport networks of *Physarum polycephalum* (True Slime Mold). 
 
-## 1. Architectural Philosophy
-
-In modern R&D, we often face a dilemma:
-* **Python** is required for data analysis, ML integration (PyTorch), and ROS2 interfacing.
-* **Web (JavaScript)** is required for easy sharing, visualization, and zero-setup demos.
-* **Performance** is critical for SLAM, Optimization, and Simulation.
-
-This project solves this by implementing the core logic in **Rust**, which is then compiled into two distinct targets via Feature Flags:
-
-```mermaid
-graph TD
-    subgraph "Core Logic (Rust)"
-        Alg[Algorithm / Physics / Math]
-    end
-
-    subgraph "Target: Web (WASM)"
-        WB[wasm-bindgen]
-        JS[JavaScript / Browser]
-        Alg --> WB --> JS
-    end
-
-    subgraph "Target: Python (Native)"
-        PyO3[PyO3 Bindings]
-        Py[Python Environment]
-        Alg --> PyO3 --> Py
-    end
-```
-
-## 2. Project Structure
-
-```text
-nx-compute-rs/
-├── .github/workflows/   # CI/CD for automatic WASM deployment & Python testing
-├── src/
-│   └── lib.rs           # The SINGLE source of truth. Contains core logic + bindings.
-├── www/                 # The Web Frontend (HTML/JS)
-│   ├── index.html
-│   ├── index.js
-│   └── pkg/             # Generated WASM artifacts (by CI)
-├── Cargo.toml           # Rust configuration (defines 'wasm' and 'python' features)
-├── pyproject.toml       # Python build configuration (Maturin)
-└── README.md            # This document
-```
-
-## 3. Usage Guide
-
-### A. As a Python Library (For Analysis/Backend)
-
-You can use the Rust core as a native Python extension. This provides near-C++ performance within your Python scripts.
-
-**Prerequisites:**
-* Rust toolchain (`rustup`)
-* Python 3.8+
-* `pip install maturin`
-
-**Setup & Run:**
-```bash
-# 1. Build and install into current venv
-maturin develop --release --features python
-
-# 2. Run in Python
-python -c "import nx_compute_rs; print(nx_compute_rs.compute_metrics(10000000, 1.5))"
-# python -c "import numpy as np; i = np.arange(10000000); x = i * np.pi / 180.0 * 1.5; print(np.sum(np.sin(x) * np.cos(x)))"
-# python -m timeit -s "import nx_compute_rs" "nx_compute_rs.compute_metrics(10000000, 1.5)"
-# python -m timeit -s "import numpy as np" "i = np.arange(10000000); x = i * np.pi / 180.0 * 1.5; np.sum(np.sin(x) * np.cos(x))"
-```
-
-## Optional: Paralell vs Serial vs NumPy
-```bash
-python -c "
-import nx_compute_rs
-import numpy as np
-import timeit
-
-# 1. Rust Serial (直列)
-t_serial = timeit.timeit(
-    'nx_compute_rs.compute_metrics(10000000, 1.5, False)', 
-    setup='import nx_compute_rs', 
-    number=10
-)
-
-# 2. Rust Parallel (並列)
-t_parallel = timeit.timeit(
-    'nx_compute_rs.compute_metrics(10000000, 1.5, True)', 
-    setup='import nx_compute_rs', 
-    number=10
-)
-
-# 3. NumPy (ベクトル化)
-t_numpy = timeit.timeit(
-    'x = np.arange(10000000) * np.pi / 180.0 * 1.5; np.sum(np.sin(x) * np.cos(x))', 
-    setup='import numpy as np', 
-    number=10
-)
-
-print(f'Rust (Serial):   {t_serial/10*1000:.2f} ms')
-print(f'Rust (Parallel): {t_parallel/10*1000:.2f} ms')
-print(f'NumPy:           {t_numpy/10*1000:.2f} ms')
-"
-```
-
-### B. As a Web Application (For Demo/Sharing)
-
-You can run the same logic in the browser via WebAssembly.
-
-**Prerequisites:**
-* `wasm-pack` (`curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`)
-
-**Setup & Run:**
-```bash
-# 1. Build WASM blob
-wasm-pack build --target web --out-dir www/pkg --no-default-features --features wasm
-
-# 2. Serve locally (using Python's http server for simplicity)
-cd www
-python3 -m http.server 8000
-# Open http://localhost:8000
-```
-
-## 4. Technical Details
-
-### Feature Flags Strategy
-We use `Cargo.toml` features to minimize binary size and dependencies.
-* **`features = ["wasm"]`**: Includes `wasm-bindgen`. Generates `.wasm` binary. Panics happen in JS console.
-* **`features = ["python"]`**: Includes `pyo3`. Generates `.so/.pyd` shared library. Python exception handling enabled.
-
-### Performance Considerations
-* **Zero-Cost Abstraction:** Rust's iterators and logic compile down to optimized machine code (simd instructions where applicable) for Python, and optimized bytecode for WASM.
-* **Memory Safety:** No manual memory management (malloc/free) required, preventing segfaults in Python extensions.
-* **GIL (Global Interpreter Lock):** The Rust code runs outside Python's GIL. For multi-threaded logic, Rust can utilize all CPU cores while Python is blocked, offering true parallelism.
-
-## 5. Deployment
-
-This repository uses **GitHub Actions** to automatically deploy the Web version.
-1.  Push to `main`.
-2.  Action triggers: Compiles Rust to WASM.
-3.  Deploys `www/` folder to **GitHub Pages**.
-
-## 6. Future Roadmap
-
-* **GPU Acceleration:** Integrate `wgpu` for portable GPU compute shaders (WebGPU + Vulkan/Metal).
-* **Serialization:** Add `serde` support to pass complex JSON/Structs between JS/Python and Rust.
-* **Sim2Real:** Port the Python bindings directly to a ROS2 node.
+This project ports a legacy JavaScript-based simulation into a **Rust-based Dual-Runtime Architecture**, enabling:
+1.  **Web**: 60fps+ visualization in the browser via WebAssembly (WASM).
+2.  **Science**: Headless, accelerated simulation in Python for reinforcement learning and statistical analysis.
 
 ---
-*Author: Funmatu*
+
+## 1. Theoretical Background
+
+### 1.1. Biological Inspiration
+Slime molds solve the "Steiner Tree Problem" and "Shortest Path Problem" without a central nervous system. They rely on emergent behavior driven by local interactions:
+* **Chemotaxis:** Movement towards attractants (food sources).
+* **Tube Reinforcement:** Successful paths (veins) thicken with flow.
+* **Tube Degeneration:** Unused paths decay over time.
+
+### 1.2. Algorithmic Implementation
+This engine models the system using a hybrid Lagrangian-Eulerian approach:
+
+* **Eulerian Grid (Environment):**
+    * Uses Diffusion-Decay equations to propagate signals (Pickup, Delivery, Repulsion).
+    * Solved via 5-point Laplacian stencil operations.
+    * $\frac{\partial C}{\partial t} = D \nabla^2 C - \lambda C + Sources$
+* **Lagrangian Agents (AGVs):**
+    * Independent entities navigating the gradient fields.
+    * **Sensory System:** 3-ray sensor (Front, Left, Right) to sample field potentials.
+    * **Memory:** Agents deposit "Vein" markers upon successful delivery, modifying the environment for future agents.
+
+---
+
+## 2. Architecture & Performance
+
+### 2.1. Dual-Runtime Strategy
+The core logic resides in `src/lib.rs`. Through conditional compilation (Feature Flags), we target two environments:
+
+| Feature | WASM Target (`--features wasm`) | Python Target (`--features python`) |
+| :--- | :--- | :--- |
+| **Interface** | `wasm-bindgen` | `PyO3` |
+| **Memory** | Shared Linear Memory (Zero-Copy) | Python Heap / NumPy Interop |
+| **Use Case** | Real-time Visualization, Demos | Batch Processing, ML Training |
+| **Parallelism**| Single-Threaded (Simplicity) | Multi-Threaded (`Rayon`) capable |
+
+### 2.2. Zero-Copy Visualization (WASM)
+To achieve high frame rates with massive agent counts, we bypass the standard JS-WASM serialization overhead.
+* **Direct Memory Access:** The JS frontend obtains raw pointers (`*const f32`) to the Rust vectors.
+* **Texture Streaming:** These memory views are fed directly into WebGL textures (`THREE.DataTexture`), allowing the GPU to render the simulation state without CPU-side copying.
+
+---
+
+## 3. Installation & Usage
+
+### A. Web Development (Visual)
+Prerequisites: `rustup`, `wasm-pack`, `npm` (optional)
+
+```bash
+# 1. Build WASM package
+wasm-pack build --target web --out-dir www/pkg --no-default-features --features wasm
+
+# 2. Serve locally
+cd www
+python3 -m http.server 8000
+
+```
+
+Visit `http://localhost:8000` to see the swarm dynamics.
+
+### B. Python Research (Headless)
+
+Prerequisites: `maturin`
+
+```bash
+# 1. Install as a Python module (optimized)
+maturin develop --release --features python
+
+# 2. Run Benchmark
+python -c "import nx_compute_rs; print(f'Delivered: {nx_compute_rs.run_simulation_bench(1000, 200)}')"
+
+```
+
+---
+
+## 4. Source Code Structure
+
+* `src/lib.rs`: The monolith core. Contains `PhysarumField` struct and `update()` loop.
+* `www/index.js`: The "Glue" code. Orchestrates the render loop and manages WASM memory views.
+* `www/index.html`: WebGL container and Shader (GLSL) definitions.
+* `.github/workflows`: Automated deployment to GitHub Pages.
+
+---
+
+## 5. Future Roadmap
+
+1. **WGPU Compute Shaders:** Move the Diffusion step entirely to the GPU using `wgpu`, freeing the CPU for millions of agents.
+2. **RL Interface:** Expose the `Simulation` struct as a Gym Environment for training agents with Reinforcement Learning.
+3. **3D Topology:** Extend the grid to 3D voxels for aerial swarm logistics.
+
+---
+
+*License: MIT | Copyright (c) 2026 Project MYXOMYCETES by Funmatu*
