@@ -1,12 +1,12 @@
 [package]
-name = "nx-compute-rs"
+name = "myxo-compute-rs"
 version = "0.1.0"
 edition = "2021"
 authors = ["R&D Researcher <your.email@example.com>"]
 description = "A dual-runtime computation core for WebAssembly and Python, powered by Rust."
 
 [lib]
-name = "nx_compute_rs"
+name = "myxo_compute_rs"
 crate-type = ["cdylib"]
 
 [features]
