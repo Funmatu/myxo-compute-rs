@@ -78,10 +78,6 @@ Prerequisites: `maturin`
 ```bash
 # 1. Install as a Python module (optimized)
 maturin develop --release --features python
-
-# 2. Run Benchmark
-python -c "import nx_compute_rs; print(f'Delivered: {nx_compute_rs.run_simulation_bench(1000, 200)}')"
-
 ```
 
 ---

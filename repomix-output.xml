@@ -1,0 +1,1093 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.github/
+  workflows/
+    deploy.yml
+src/
+  lib.rs
+www/
+  index.html
+  index.js
+.gitignore
+Cargo.toml
+LICENSE
+pyproject.toml
+README.md
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".gitignore">
+# ========================
+# Rust / Cargo
+# ========================
+# ビルド生成物（巨大なので絶対にコミットしない）
+/target/
+
+# バックアップファイルなど
+**/*.rs.bk
+
+# Cargo.lock はライブラリ開発なら無視することもありますが、
+# 今回はアプリケーション/PoCとしての再現性を重視するためコミットします。
+# (無視したい場合は下の行の # を外してください)
+# Cargo.lock
+
+# ========================
+# Python
+# ========================
+# バイトコード
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C拡張モジュール (MaturinでビルドされたRustライブラリ本体)
+*.so
+*.pyd
+*.dylib
+
+# 配布用ビルドアーティファクト
+dist/
+build/
+*.egg-info/
+
+# 仮想環境 (uv venv)
+.venv/
+venv/
+env/
+ENV/
+
+# テスト・型チェックキャッシュ
+.pytest_cache/
+.mypy_cache/
+
+# ========================
+# WebAssembly / Frontend
+# ========================
+# wasm-pack によって自動生成されるファイル群
+# (ソースコードからいつでも再生成できるためコミット不要)
+www/pkg/
+
+# npm を使うようになった場合の依存ライブラリ
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ========================
+# OS / IDE / Editors
+# ========================
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# VS Code
+.vscode/
+
+# IntelliJ / PyCharm
+.idea/
+
+# Vim / Emacs
+*~
+*.swp
+</file>
+
+<file path="LICENSE">
+MIT License
+
+Copyright (c) 2025 Funmatu
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+</file>
+
+<file path="pyproject.toml">
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "myxo_compute_rs"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dynamic = ["version"]
+</file>
+
+<file path=".github/workflows/deploy.yml">
+name: Deploy to GitHub Pages
+
+on:
+  # mainブランチにpushされたら実行
+  push:
+    branches: ["main"]
+  # ブラウザから手動で実行したい時用
+  workflow_dispatch:
+
+permissions:
+  contents: write # gh-pagesブランチへの書き込み権限
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Rust環境のセットアップ (キャッシュも効く現代的なAction)
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      # wasm-packのインストール
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      # ビルド実行 (Releaseモードで最適化)
+      - name: Build WASM
+        # ハイブリッド構成なので、Web用フラグ(--features wasm)を明示的にONにする
+        run: wasm-pack build --target web --out-dir www/pkg --no-default-features --features wasm
+      
+      # CIサーバー上でのみ ルートと、pkg内部のgitignoreの両方を抹殺する。
+      # これにより、ユーザーのローカル環境は汚さずに、生成された pkg フォルダを強制的に認識させる。
+      - name: Remove .gitignore to allow deploying pkg
+        run: |
+          rm -f .gitignore
+          rm -f www/pkg/.gitignore
+      
+      # Jekyll処理を無効化するファイルを作成
+      - name: Create .nojekyll
+        run: touch www/.nojekyll
+
+      # GitHub Pagesへのデプロイ
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./www # このフォルダの中身を公開する
+          force_orphan: true # 履歴を溜め込まず、常に最新版だけで上書きする（軽量化）
+
+# ======================================================================================
+#  [Reference] Python CI Job
+#  将来的にPythonモジュールの自動テストが必要になった場合、以下のコメントを解除してjobsに追加してください。
+#  (ローカルのUV環境で十分な場合は不要です)
+# ======================================================================================
+#   test-python:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#
+#       - name: Set up Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: '3.10'
+#
+#       # Python側でもRustコンパイラは必要
+#       - name: Install Rust
+#         uses: dtolnay/rust-toolchain@stable
+#
+#       - name: Install Maturin
+#         run: pip install maturin
+#
+#       - name: Build and Test Python Module
+#         # Releaseビルドでテストする場合、--release を追加してください
+#         run: |
+#           maturin develop --features python
+#           python -c "import myxo_compute_rs; print(f'Test Result: {myxo_compute_rs.compute_metrics(1000, 1.0)}')"
+</file>
+
+<file path="src/lib.rs">
+use std::f64::consts::PI;
+use rand::prelude::*;
+
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
+const GRID_SIZE: usize = 128;
+
+// ============================================================================
+//  STRUCTS
+// ============================================================================
+
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+pub struct PhysarumField {
+    pickup: Vec<f32>,
+    delivery: Vec<f32>,
+    repulsion: Vec<f32>,
+    vein: Vec<f32>,
+    obstacles: Vec<f32>,
+    
+    next_p: Vec<f32>,
+    next_d: Vec<f32>,
+    next_r: Vec<f32>,
+
+    width: usize,
+    height: usize,
+
+    // Dynamic Parameters
+    diff_coeff: f32,
+    decay_coeff: f32,
+}
+
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[derive(Clone, Copy, PartialEq)]
+pub enum AgentState {
+    SeekPickup = 0,
+    Loading = 1,
+    SeekDelivery = 2,
+    Unloading = 3,
+}
+
+#[derive(Clone)]
+struct Agent {
+    x: f64,
+    y: f64,
+    angle: f64,
+    state: AgentState,
+    timer: u32,
+    history: Vec<(f64, f64)>,
+    speed: f64,
+}
+
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+pub struct Simulation {
+    field: PhysarumField,
+    agents: Vec<Agent>,
+    delivered_count: u32,
+}
+
+// ============================================================================
+//  IMPLEMENTATION
+// ============================================================================
+
+impl PhysarumField {
+    fn new(w: usize, h: usize) -> Self {
+        let size = w * h;
+        let mut f = Self {
+            pickup: vec![0.0; size],
+            delivery: vec![0.0; size],
+            repulsion: vec![0.0; size],
+            vein: vec![0.0; size],
+            obstacles: vec![0.0; size],
+            next_p: vec![0.0; size],
+            next_d: vec![0.0; size],
+            next_r: vec![0.0; size],
+            width: w,
+            height: h,
+            diff_coeff: 0.15,
+            decay_coeff: 0.05,
+        };
+        f.randomize_obstacles();
+        f
+    }
+
+    fn randomize_obstacles(&mut self) {
+        let mut rng = rand::thread_rng();
+        self.obstacles.fill(0.0);
+        self.pickup.fill(0.0);
+        self.delivery.fill(0.0);
+        self.vein.fill(0.0);
+
+        // Walls
+        for i in 0..self.width {
+            self.obstacles[i] = 1.0;
+            self.obstacles[(self.height - 1) * self.width + i] = 1.0;
+        }
+        for i in 0..self.height {
+            self.obstacles[i * self.width] = 1.0;
+            self.obstacles[i * self.width + (self.width - 1)] = 1.0;
+        }
+
+        // Random blocks
+        let block_count = rng.gen_range(12..20);
+        for _ in 0..block_count {
+            let bx = rng.gen_range(20..(self.width - 40));
+            let by = rng.gen_range(20..(self.height - 40));
+            let bw = rng.gen_range(5..20);
+            let bh = rng.gen_range(5..20);
+
+            for y in by..(by + bh) {
+                for x in bx..(bx + bw) {
+                    if y < self.height && x < self.width {
+                        self.obstacles[y * self.width + x] = 1.0;
+                    }
+                }
+            }
+        }
+    }
+
+    fn update_diffusion(&mut self) {
+        let w = self.width;
+        let h = self.height;
+        let diff = self.diff_coeff;
+        let decay = self.decay_coeff;
+        let r_decay = 0.15;
+        let v_decay = 0.003;
+
+        // Sources (Continuous injection)
+        self.pickup[12 * w + 12] = 10.0;
+        self.pickup[13 * w + 12] = 10.0;
+        self.delivery[(h - 12) * w + (w - 12)] = 10.0;
+        self.delivery[(h - 13) * w + (w - 12)] = 10.0;
+
+        for y in 1..h-1 {
+            for x in 1..w-1 {
+                let i = y * w + x;
+                if self.obstacles[i] > 0.5 {
+                    self.next_r[i] = 1.0; 
+                    continue;
+                }
+
+                // Laplacian
+                let lap_p = self.pickup[i-1] + self.pickup[i+1] + self.pickup[i-w] + self.pickup[i+w] - 4.0 * self.pickup[i];
+                let lap_d = self.delivery[i-1] + self.delivery[i+1] + self.delivery[i-w] + self.delivery[i+w] - 4.0 * self.delivery[i];
+                let lap_r = self.repulsion[i-1] + self.repulsion[i+1] + self.repulsion[i-w] + self.repulsion[i+w] - 4.0 * self.repulsion[i];
+
+                // 【修正】 .max(0.0) を追加して負の値を防ぐ（これが諸悪の根源でした）
+                self.next_p[i] = ((self.pickup[i] + diff * lap_p) * (1.0 - decay)).max(0.0);
+                self.next_d[i] = ((self.delivery[i] + diff * lap_d) * (1.0 - decay)).max(0.0);
+                self.next_r[i] = ((self.repulsion[i] + diff * lap_r) * (1.0 - r_decay)).max(0.0);
+                
+                self.vein[i] *= 1.0 - v_decay;
+            }
+        }
+        
+        self.pickup.copy_from_slice(&self.next_p);
+        self.delivery.copy_from_slice(&self.next_d);
+        self.repulsion.copy_from_slice(&self.next_r);
+    }
+}
+
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+impl Simulation {
+    #[cfg_attr(feature = "wasm", wasm_bindgen(constructor))]
+    pub fn new(agent_count: usize) -> Self {
+        let mut sim = Self {
+            field: PhysarumField::new(GRID_SIZE, GRID_SIZE),
+            agents: Vec::with_capacity(agent_count),
+            delivered_count: 0,
+        };
+        sim.resize_agents(agent_count);
+        sim
+    }
+
+    pub fn set_diffusion(&mut self, val: f32) { self.field.diff_coeff = val; }
+    pub fn set_decay(&mut self, val: f32) { self.field.decay_coeff = val; }
+
+    pub fn resize_agents(&mut self, count: usize) {
+        let mut rng = rand::thread_rng();
+        if count > self.agents.len() {
+            for _ in self.agents.len()..count {
+                self.agents.push(Agent {
+                    x: rng.gen_range(10.0..30.0),
+                    y: rng.gen_range(10.0..30.0),
+                    angle: rng.gen::<f64>() * 2.0 * PI,
+                    state: AgentState::SeekPickup,
+                    timer: 0,
+                    history: Vec::new(),
+                    speed: 0.4 + rng.gen::<f64>() * 0.15,
+                });
+            }
+        } else {
+            self.agents.truncate(count);
+        }
+    }
+
+    pub fn randomize_map(&mut self) {
+        self.field.randomize_obstacles();
+        self.delivered_count = 0;
+    }
+
+    pub fn update(&mut self) {
+        self.field.update_diffusion();
+
+        let w = self.field.width;
+        let h = self.field.height;
+        let sensor_dist = 6.0;
+        let sensor_angle = 0.6;
+
+        for agent in &mut self.agents {
+            if agent.timer > 0 {
+                agent.timer -= 1;
+                add_repulsion(&mut self.field.repulsion, w, h, agent.x, agent.y, 0.6);
+                continue;
+            }
+
+            let (target_field, _) = match agent.state {
+                AgentState::SeekPickup => (&self.field.pickup, true),
+                _ => (&self.field.delivery, false),
+            };
+
+            let sense = |ang: f64| -> f32 {
+                let sx = (agent.x + ang.cos() * sensor_dist).floor() as isize;
+                let sy = (agent.y + ang.sin() * sensor_dist).floor() as isize;
+                
+                if sx < 0 || sx >= w as isize || sy < 0 || sy >= h as isize {
+                    return -1.0;
+                }
+                let idx = (sy as usize) * w + (sx as usize);
+                if self.field.obstacles[idx] > 0.5 {
+                    return -5.0;
+                }
+                target_field[idx] + self.field.vein[idx] * 0.4 - self.field.repulsion[idx] * 3.0
+            };
+
+            let f_val = sense(agent.angle);
+            let l_val = sense(agent.angle - sensor_angle);
+            let r_val = sense(agent.angle + sensor_angle);
+
+            if f_val < l_val && f_val < r_val {
+                let mut rng = rand::thread_rng();
+                agent.angle += (rng.gen::<f64>() - 0.5) * 1.5;
+            } else if l_val > r_val {
+                agent.angle -= 0.12;
+            } else if r_val > l_val {
+                agent.angle += 0.12;
+            }
+
+            let next_x = agent.x + agent.angle.cos() * agent.speed;
+            let next_y = agent.y + agent.angle.sin() * agent.speed;
+            let ni = (next_y.floor() as usize) * w + (next_x.floor() as usize);
+
+            if next_x > 0.0 && next_x < w as f64 && next_y > 0.0 && next_y < h as f64 && self.field.obstacles[ni] < 0.5 {
+                agent.x = next_x;
+                agent.y = next_y;
+            } else {
+                let mut rng = rand::thread_rng();
+                agent.angle += PI * (0.4 + rng.gen::<f64>() * 0.2);
+            }
+
+            add_repulsion(&mut self.field.repulsion, w, h, agent.x, agent.y, 0.4);
+
+            if matches!(agent.state, AgentState::SeekDelivery) {
+                agent.history.push((agent.x, agent.y));
+                if agent.history.len() > 300 {
+                    agent.history.remove(0);
+                }
+            }
+
+            let curr_idx = (agent.y.floor() as usize) * w + (agent.x.floor() as usize);
+            match agent.state {
+                AgentState::SeekPickup if self.field.pickup[curr_idx] > 2.5 => {
+                    agent.state = AgentState::Loading;
+                    agent.timer = 50;
+                    agent.history.clear();
+                },
+                AgentState::Loading if agent.timer == 0 => {
+                    agent.state = AgentState::SeekDelivery;
+                },
+                AgentState::SeekDelivery if self.field.delivery[curr_idx] > 2.5 => {
+                    agent.state = AgentState::Unloading;
+                    agent.timer = 50;
+                    for &(hx, hy) in &agent.history {
+                        add_vein(&mut self.field.vein, w, h, hx, hy, 0.35);
+                    }
+                    self.delivered_count += 1;
+                },
+                AgentState::Unloading if agent.timer == 0 => {
+                    agent.state = AgentState::SeekPickup;
+                },
+                _ => {}
+            }
+        }
+    }
+
+    pub fn get_pickup_ptr(&self) -> *const f32 { self.field.pickup.as_ptr() }
+    pub fn get_delivery_ptr(&self) -> *const f32 { self.field.delivery.as_ptr() }
+    pub fn get_repulsion_ptr(&self) -> *const f32 { self.field.repulsion.as_ptr() }
+    pub fn get_vein_ptr(&self) -> *const f32 { self.field.vein.as_ptr() }
+    pub fn get_obstacles_ptr(&self) -> *const f32 { self.field.obstacles.as_ptr() }
+    
+    pub fn get_agents_flat(&self, out_vec: &mut [f32]) {
+        for (i, agent) in self.agents.iter().enumerate() {
+            if i * 4 + 3 >= out_vec.len() { break; }
+            out_vec[i*4 + 0] = agent.x as f32;
+            out_vec[i*4 + 1] = agent.y as f32;
+            out_vec[i*4 + 2] = agent.state as u32 as f32;
+            out_vec[i*4 + 3] = agent.angle as f32;
+        }
+    }
+    
+    pub fn get_delivered_count(&self) -> u32 { self.delivered_count }
+}
+
+fn add_repulsion(grid: &mut Vec<f32>, w: usize, h: usize, x: f64, y: f64, val: f32) {
+    let gx = x.floor() as isize;
+    let gy = y.floor() as isize;
+    if gx >= 0 && gx < w as isize && gy >= 0 && gy < h as isize {
+        grid[(gy as usize) * w + (gx as usize)] += val;
+    }
+}
+
+fn add_vein(grid: &mut Vec<f32>, w: usize, h: usize, x: f64, y: f64, val: f32) {
+    add_repulsion(grid, w, h, x, y, val);
+}
+
+// -----------------------------------------------------------------------------
+// Module: Python Interface (PyO3)
+// -----------------------------------------------------------------------------
+#[cfg(feature = "python")]
+use pyo3::prelude::*;
+
+#[cfg(feature = "python")]
+#[pyfunction]
+fn run_simulation_bench(steps: usize, agent_count: usize) -> PyResult<u32> {
+    let mut sim = Simulation::new(agent_count);
+    for _ in 0..steps {
+        sim.update();
+    }
+    Ok(sim.get_delivered_count())
+}
+
+#[cfg(feature = "python")]
+#[pymodule]
+fn myxo_compute_rs(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(run_simulation_bench, m)?)?;
+    Ok(())
+}
+</file>
+
+<file path="www/index.html">
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project MYXOMYCETES: Advanced Swarm Simulator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; color: #0f0; font-family: 'Courier New', Courier, monospace; }
+        #ui-layer { position: absolute; top: 10px; left: 10px; z-index: 100; pointer-events: none; }
+        .stat-panel { background: rgba(0, 20, 0, 0.8); border: 1px solid #0f0; padding: 10px; margin-bottom: 5px; pointer-events: auto; }
+        canvas { display: block; }
+        #overlay { position: absolute; bottom: 20px; left: 20px; color: #0f0; font-size: 12px; pointer-events: none; }
+        .legend { margin-top: 10px; font-size: 11px; }
+        .legend-item { display: flex; align-items: center; margin-bottom: 3px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+        
+        /* Loading Overlay */
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 24px; color: #0f0; background: rgba(0,0,0,0.8); padding: 20px; border: 1px solid #0f0;
+            pointer-events: none; z-index: 200; transition: opacity 0.5s;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-layer">
+    <div class="stat-panel">
+        <h2 style="margin:0 0 10px 0; font-size:16px;">PROJECT MYXOMYCETES v2.0</h2>
+        <div>STATUS: <span id="status">INITIALIZING...</span></div>
+        <div>THROUGHPUT: <span id="throughput">0</span> pkgs/min</div>
+        <div>ACTIVE AGVs: <span id="agv-count-display">0</span></div>
+        
+        <div class="legend">
+            <div class="legend-item"><div class="dot" style="background: #00ffff;"></div>Seek Pickup (Cyan)</div>
+            <div class="legend-item"><div class="dot" style="background: #ffff00;"></div>Seek Delivery (Yellow)</div>
+            <div class="legend-item"><div class="dot" style="background: #ff00ff;"></div>Unloading (Magenta)</div>
+            <div class="legend-item"><div class="dot" style="background: #0000ff;"></div>Repulsion (Blue Field)</div>
+        </div>
+    </div>
+    <div class="stat-panel">
+        <div style="font-size:12px;">SYSTEM LOG:</div>
+        <div id="log" style="font-size:10px; height: 80px; overflow-y: hidden;"></div>
+    </div>
+</div>
+
+<div id="overlay">
+    [CORE] Rust/WASM High-Performance Engine<br>
+    [SYS] Adaptive Grid Topology: 128x128<br>
+    [DATA] Zero-Copy Memory Streaming Active
+</div>
+
+<div id="loading">Initializing WebAssembly Core...</div>
+
+<script type="module" src="./index.js"></script>
+
+</body>
+</html>
+</file>
+
+<file path="README.md">
+# Project MYXOMYCETES: Dual-Runtime Swarm Logistics Engine
+
+![Build Status](https://github.com/Funmatu/myxo-compute-rs/actions/workflows/deploy.yml/badge.svg)
+![Rust](https://img.shields.io/badge/Language-Rust-orange.svg)
+![WASM](https://img.shields.io/badge/Platform-WebAssembly-blue.svg)
+![Python](https://img.shields.io/badge/Platform-Python-yellow.svg)
+
+**Project MYXOMYCETES** (myxo-compute-rs) is a high-performance, agent-based simulation engine inspired by the biological transport networks of *Physarum polycephalum* (True Slime Mold). 
+
+This project ports a legacy JavaScript-based simulation into a **Rust-based Dual-Runtime Architecture**, enabling:
+1.  **Web**: 60fps+ visualization in the browser via WebAssembly (WASM).
+2.  **Science**: Headless, accelerated simulation in Python for reinforcement learning and statistical analysis.
+
+---
+
+## 1. Theoretical Background
+
+### 1.1. Biological Inspiration
+Slime molds solve the "Steiner Tree Problem" and "Shortest Path Problem" without a central nervous system. They rely on emergent behavior driven by local interactions:
+* **Chemotaxis:** Movement towards attractants (food sources).
+* **Tube Reinforcement:** Successful paths (veins) thicken with flow.
+* **Tube Degeneration:** Unused paths decay over time.
+
+### 1.2. Algorithmic Implementation
+This engine models the system using a hybrid Lagrangian-Eulerian approach:
+
+* **Eulerian Grid (Environment):**
+    * Uses Diffusion-Decay equations to propagate signals (Pickup, Delivery, Repulsion).
+    * Solved via 5-point Laplacian stencil operations.
+    * $\frac{\partial C}{\partial t} = D \nabla^2 C - \lambda C + Sources$
+* **Lagrangian Agents (AGVs):**
+    * Independent entities navigating the gradient fields.
+    * **Sensory System:** 3-ray sensor (Front, Left, Right) to sample field potentials.
+    * **Memory:** Agents deposit "Vein" markers upon successful delivery, modifying the environment for future agents.
+
+---
+
+## 2. Architecture & Performance
+
+### 2.1. Dual-Runtime Strategy
+The core logic resides in `src/lib.rs`. Through conditional compilation (Feature Flags), we target two environments:
+
+| Feature | WASM Target (`--features wasm`) | Python Target (`--features python`) |
+| :--- | :--- | :--- |
+| **Interface** | `wasm-bindgen` | `PyO3` |
+| **Memory** | Shared Linear Memory (Zero-Copy) | Python Heap / NumPy Interop |
+| **Use Case** | Real-time Visualization, Demos | Batch Processing, ML Training |
+| **Parallelism**| Single-Threaded (Simplicity) | Multi-Threaded (`Rayon`) capable |
+
+### 2.2. Zero-Copy Visualization (WASM)
+To achieve high frame rates with massive agent counts, we bypass the standard JS-WASM serialization overhead.
+* **Direct Memory Access:** The JS frontend obtains raw pointers (`*const f32`) to the Rust vectors.
+* **Texture Streaming:** These memory views are fed directly into WebGL textures (`THREE.DataTexture`), allowing the GPU to render the simulation state without CPU-side copying.
+
+---
+
+## 3. Installation & Usage
+
+### A. Web Development (Visual)
+Prerequisites: `rustup`, `wasm-pack`, `npm` (optional)
+
+```bash
+# 1. Build WASM package
+wasm-pack build --target web --out-dir www/pkg --no-default-features --features wasm
+
+# 2. Serve locally
+cd www
+python3 -m http.server 8000
+
+```
+
+Visit `http://localhost:8000` to see the swarm dynamics.
+
+### B. Python Research (Headless)
+
+Prerequisites: `maturin`
+
+```bash
+# 1. Install as a Python module (optimized)
+maturin develop --release --features python
+```
+
+---
+
+## 4. Source Code Structure
+
+* `src/lib.rs`: The monolith core. Contains `PhysarumField` struct and `update()` loop.
+* `www/index.js`: The "Glue" code. Orchestrates the render loop and manages WASM memory views.
+* `www/index.html`: WebGL container and Shader (GLSL) definitions.
+* `.github/workflows`: Automated deployment to GitHub Pages.
+
+---
+
+## 5. Future Roadmap
+
+1. **WGPU Compute Shaders:** Move the Diffusion step entirely to the GPU using `wgpu`, freeing the CPU for millions of agents.
+2. **RL Interface:** Expose the `Simulation` struct as a Gym Environment for training agents with Reinforcement Learning.
+3. **3D Topology:** Extend the grid to 3D voxels for aerial swarm logistics.
+
+---
+
+*License: MIT | Copyright (c) 2026 Project MYXOMYCETES by Funmatu*
+</file>
+
+<file path="www/index.js">
+import init, { Simulation } from './pkg/myxo_compute_rs.js';
+
+const GRID_SIZE = 128;
+const TEXTURE_SIZE = GRID_SIZE * GRID_SIZE;
+
+const THREE = window.THREE;
+const dat = window.dat;
+
+async function run() {
+    // DOM Elements
+    const statusEl = document.getElementById('status');
+    const throughputEl = document.getElementById('throughput');
+    const loadingEl = document.getElementById('loading');
+    const agvCountEl = document.getElementById('agv-count-display');
+    const logEl = document.getElementById('log');
+
+    // === Helper: System Log ===
+    function log(msg) {
+        const time = new Date().toLocaleTimeString();
+        if(logEl) {
+            logEl.innerHTML = `[${time}] ${msg}<br>` + logEl.innerHTML;
+        }
+        console.log(msg);
+    }
+
+    // 1. Initialize WASM
+    let wasm;
+    try {
+        wasm = await init();
+        if (loadingEl) loadingEl.style.opacity = 0;
+        if (statusEl) statusEl.innerText = "SWARM ACTIVE";
+        log("WASM Core Initialized. High-Performance Mode.");
+    } catch (e) {
+        console.error("WASM Init Failed:", e);
+        if (statusEl) statusEl.innerText = "WASM ERROR";
+        return;
+    }
+
+    // 2. Configuration
+    const config = {
+        agvCount: 30,
+        diffusion: 0.15,
+        decay: 0.05,
+        // visualGain は削除（元のロジックに戻すため）
+        randomize: function() {
+            sim.randomize_map();
+            log("Map Randomized. Obstacles regenerated.");
+        },
+        resetStats: function() {
+            startTime = Date.now();
+            sim = new Simulation(config.agvCount);
+            sim.set_diffusion(config.diffusion);
+            sim.set_decay(config.decay);
+            log("Statistics & Simulation Reset.");
+        }
+    };
+
+    let sim = new Simulation(config.agvCount);
+    // 初期値を反映
+    sim.set_diffusion(config.diffusion);
+    sim.set_decay(config.decay);
+
+    // 3. Setup GUI
+    const gui = new dat.GUI();
+    const fSwarm = gui.addFolder('Swarm Configuration');
+    
+    fSwarm.add(config, 'agvCount', 10, 200).step(1).name('AGV Count')
+        .onChange(v => {
+            sim.resize_agents(v);
+            agvCountEl.innerText = v;
+            log(`AGV Fleet resized to ${v} units.`);
+        });
+    
+    fSwarm.add(config, 'diffusion', 0.01, 0.3).name('Diffusion')
+        .onChange(v => sim.set_diffusion(v));
+    
+    fSwarm.add(config, 'decay', 0.001, 0.1).name('Decay')
+        .onChange(v => sim.set_decay(v));
+    
+    fSwarm.open();
+
+    const fEnv = gui.addFolder('Environment Control');
+    fEnv.add(config, 'randomize').name('Randomize');
+    fEnv.add(config, 'resetStats').name('Reset Statistics');
+    fEnv.open();
+
+    // 4. Setup Three.js
+    const scene = new THREE.Scene();
+    
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(GRID_SIZE/2, -GRID_SIZE/1.1, GRID_SIZE/1.0);
+    camera.lookAt(GRID_SIZE/2, GRID_SIZE/2, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    // 背景色はCSSで指定されているため、レンダラーのクリアカラーは透明か黒でOK
+    // 元のコードには setClearColor は無かったが、Three.jsのデフォルトは黒
+    
+    const existingCanvas = document.querySelector('canvas');
+    if (existingCanvas) existingCanvas.remove();
+    document.body.appendChild(renderer.domElement);
+
+    // 5. Data Textures & Field Mesh
+    const initialData = new Float32Array(TEXTURE_SIZE).fill(0);
+    
+    // 【修正】LinearFilterに戻し、滑らかな補間を有効化
+    function createDataTexture() {
+        const tex = new THREE.DataTexture(initialData, GRID_SIZE, GRID_SIZE, THREE.RedFormat, THREE.FloatType);
+        tex.magFilter = THREE.LinearFilter; // 元の仕様に戻す
+        tex.minFilter = THREE.LinearFilter; // 元の仕様に戻す
+        tex.needsUpdate = true;
+        return tex;
+    }
+
+    const texPickup = createDataTexture();
+    const texDelivery = createDataTexture();
+    const texRepulsion = createDataTexture();
+    const texVein = createDataTexture();
+    const texObstacles = createDataTexture();
+
+    // 【修正】シェーダーをJS版と完全に一致させる
+    const material = new THREE.ShaderMaterial({
+        uniforms: {
+            uPickup: { value: texPickup },
+            uDelivery: { value: texDelivery },
+            uRepulsion: { value: texRepulsion },
+            uVein: { value: texVein },
+            uObstacles: { value: texObstacles }
+            // uGain は削除
+        },
+        vertexShader: `
+            varying vec2 vUv;
+            varying float vHeight;
+            uniform sampler2D uVein;
+            uniform sampler2D uObstacles;
+            void main() {
+                vUv = uv;
+                float v = texture2D(uVein, uv).r;
+                float obs = texture2D(uObstacles, uv).r;
+                // JS版の計算式: VeinとObstaclesのみを高さに反映
+                vHeight = v * 8.0 + obs * 4.0;
+                vec3 pos = position;
+                pos.z += vHeight;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            }
+        `,
+        fragmentShader: `
+            varying vec2 vUv;
+            uniform sampler2D uPickup;
+            uniform sampler2D uDelivery;
+            uniform sampler2D uRepulsion;
+            uniform sampler2D uVein;
+            uniform sampler2D uObstacles;
+            void main() {
+                float p = texture2D(uPickup, vUv).r;
+                float d = texture2D(uDelivery, vUv).r;
+                float r = texture2D(uRepulsion, vUv).r;
+                float v = texture2D(uVein, vUv).r;
+                float obs = texture2D(uObstacles, vUv).r;
+                
+                vec3 color = vec3(0.0);
+                // JS版の色計算式: ゲインなしの生ブレンド
+                color.r = p * 1.0 + v * 0.6;
+                color.g = d * 1.0 + v * 0.6;
+                color.b = r * 0.6 + obs * 0.4;
+
+                if(obs > 0.5) color = vec3(0.1, 0.1, 0.3);
+
+                gl_FragColor = vec4(color, 0.95);
+            }
+        `,
+        transparent: true
+    });
+
+    const geometry = new THREE.PlaneGeometry(GRID_SIZE, GRID_SIZE, GRID_SIZE-1, GRID_SIZE-1);
+    const fieldMesh = new THREE.Mesh(geometry, material);
+    fieldMesh.position.set(GRID_SIZE/2, GRID_SIZE/2, 0);
+    scene.add(fieldMesh);
+
+    // 6. Agents
+    const agentMeshes = [];
+    // 【修正】エージェントのサイズをJS版に戻す
+    const agentGeo = new THREE.BoxGeometry(1.5, 2.5, 1.2);
+    const agentMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+    
+    const maxAgents = 200;
+    const agentsData = new Float32Array(maxAgents * 4);
+
+    // 7. Animation Loop
+    let startTime = Date.now();
+    let frameCount = 0;
+
+    function animate() {
+        requestAnimationFrame(animate);
+        frameCount++;
+
+        // Rust Update
+        for(let i=0; i<2; i++) sim.update();
+
+        // Texture Update
+        const memory = wasm.memory.buffer;
+
+        texPickup.image.data.set(new Float32Array(memory, sim.get_pickup_ptr(), TEXTURE_SIZE));
+        texPickup.needsUpdate = true;
+
+        texDelivery.image.data.set(new Float32Array(memory, sim.get_delivery_ptr(), TEXTURE_SIZE));
+        texDelivery.needsUpdate = true;
+
+        texRepulsion.image.data.set(new Float32Array(memory, sim.get_repulsion_ptr(), TEXTURE_SIZE));
+        texRepulsion.needsUpdate = true;
+
+        texVein.image.data.set(new Float32Array(memory, sim.get_vein_ptr(), TEXTURE_SIZE));
+        texVein.needsUpdate = true;
+
+        texObstacles.image.data.set(new Float32Array(memory, sim.get_obstacles_ptr(), TEXTURE_SIZE));
+        texObstacles.needsUpdate = true;
+
+        // Agent Update
+        const currentCount = config.agvCount;
+        sim.get_agents_flat(agentsData);
+
+        // Mesh Pool
+        while (agentMeshes.length < currentCount) {
+            const mesh = new THREE.Mesh(agentGeo, agentMat.clone());
+            scene.add(mesh);
+            agentMeshes.push(mesh);
+        }
+        while (agentMeshes.length > currentCount) {
+            const mesh = agentMeshes.pop();
+            scene.remove(mesh);
+        }
+
+        for (let i = 0; i < currentCount; i++) {
+            const mesh = agentMeshes[i];
+            const x = agentsData[i*4 + 0];
+            const y = agentsData[i*4 + 1];
+            const state = agentsData[i*4 + 2]; 
+            const angle = agentsData[i*4 + 3];
+
+            mesh.position.set(x, y, 1.5);
+            mesh.rotation.z = angle - Math.PI/2;
+
+            if (state < 0.5) mesh.material.color.set(0x00ffff); // Seek Pickup
+            else if (state < 1.5) mesh.material.color.set(0xff00ff); // Loading
+            else if (state < 2.5) mesh.material.color.set(0xffff00); // Seek Delivery
+            else mesh.material.color.set(0xff00ff); // Unloading
+
+            mesh.position.z = (state >= 1.5 && state < 3.5) ? 2.5 : 1.5;
+        }
+
+        // Stats (UI更新間引きは維持)
+        if (frameCount % 10 === 0) {
+            const currentTotal = sim.get_delivered_count();
+            const elapsedMins = (Date.now() - startTime) / 60000;
+            if (elapsedMins > 0.01 && throughputEl) {
+                throughputEl.innerText = (currentTotal / elapsedMins).toFixed(1);
+            }
+            if (agvCountEl) agvCountEl.innerText = currentCount;
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+}
+
+run();
+</file>
+
+<file path="Cargo.toml">
+[package]
+name = "myxo-compute-rs"
+version = "0.1.0"
+edition = "2021"
+authors = ["R&D Researcher <your.email@example.com>"]
+description = "A dual-runtime computation core for WebAssembly and Python, powered by Rust."
+
+[lib]
+name = "myxo_compute_rs"
+crate-type = ["cdylib"]
+
+[features]
+default = ["wasm"]
+wasm = ["dep:wasm-bindgen"]
+python = ["dep:pyo3"]
+
+[dependencies]
+# Common dependencies (Math, etc.)
+serde = { version = "1.0", features = ["derive"] }
+
+# Feature: WebAssembly
+wasm-bindgen = { version = "0.2", optional = true }
+
+# Feature: Python
+pyo3 = { version = "0.20", features = ["extension-module"], optional = true }
+
+rayon = "1.10"
+rand = "0.8"
+getrandom = { version = "0.2", features = ["js"] } # WASMで乱数を使うために必須
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
+</file>
+
+</files>
